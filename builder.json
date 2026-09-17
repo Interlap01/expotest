@@ -1,0 +1,22 @@
+{
+  "project": "ExpoTest",
+  "platform": "ios",
+  "github": {
+    "owner": "Interlap01",
+    "repo": "expotest"
+  },
+  "provider": "github",
+  "codemagic": {},
+  "bitrise": {},
+  "ios": {
+    "path": "ios"
+  },
+  "flutter": {
+    "watch": {}
+  },
+  "reactNative": {
+    "expo": true
+  },
+  "kmp": {},
+  "mobai": {}
+}
