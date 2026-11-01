@@ -1,0 +1,42 @@
+{
+  "build": {
+    "android": {
+      "debug": {
+        "command": "npm install && npx expo prebuild -p android && cd android && ./gradlew assembleDebug",
+        "app": "android/app/build/outputs/apk/debug/*.apk"
+      },
+      "release": {
+        "command": "npm install && npx expo prebuild -p android && cd android && ./gradlew bundleRelease",
+        "app": "android/app/build/outputs/bundle/release/*.aab"
+      }
+    },
+    "ios": {
+      "debug": {
+        "command": "npm install && npx expo prebuild -p ios && cd ios && xcodebuild -workspace ExpoTest.xcworkspace -scheme ExpoTest -configuration Debug -sdk iphonesimulator -derivedDataPath build build",
+        "app": "ios/build/Build/Products/Debug-iphonesimulator/*.app"
+      },
+      "device": {
+        "command": "npm install && npx expo prebuild -p ios && cd ios && xcodebuild -workspace ExpoTest.xcworkspace -scheme ExpoTest -configuration Debug -destination generic/platform=iOS -derivedDataPath build -allowProvisioningUpdates build",
+        "app": "ios/build/Build/Products/Debug-iphoneos/*.app"
+      },
+      "release": {
+        "command": "npm install && npx expo prebuild -p ios && cd ios && xcodebuild -workspace ExpoTest.xcworkspace -scheme ExpoTest -configuration Release -destination generic/platform=iOS -archivePath build/App.xcarchive -allowProvisioningUpdates archive && xcodebuild -exportArchive -archivePath build/App.xcarchive -exportOptionsPlist \"$MOBAI_EXPORT_OPTIONS\" -exportPath build/ipa -allowProvisioningUpdates",
+        "app": "ios/build/ipa/*.ipa"
+      }
+    }
+  },
+  "github": {
+    "owner": "Interlap01",
+    "repo": "expotest"
+  },
+  "ios": {
+    "bundleId": "run.mobai.expotest"
+  },
+  "name": "expotest",
+  "profiles": {
+    "development": {
+      "distribution": "development"
+    }
+  },
+  "project": "15e04a84-9bd8-41b0-b13c-170c4090b50f"
+}

@@ -1,0 +1,237 @@
+name: MobAI tests
+
+# Runs the app's MobAI tests on an iOS simulator and an Android emulator, and
+# reports each run to the app's Testing project, where the MobAI app shows
+# it. Added by MobAI App Builder; edit it freely.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+concurrency:
+  group: mobai-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Until a test is committed there is nothing to run, so the device jobs
+  # below are skipped instead of building the app for nothing.
+  tests:
+    runs-on: ubuntu-latest
+    outputs:
+      found: ${{ steps.find.outputs.found }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Find tests
+        id: find
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          if [ -n "$(find 'tests' -name '*.mob' 2>/dev/null | head -1)" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No MobAI tests yet. They run here once one is committed."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  ios:
+    needs: tests
+    if: needs.tests.outputs.found == 'true'
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs mobai-ci and boots a simulator.
+      - uses: MobAI-App/mobai-ci@v1
+        with:
+          boot-sim: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+
+      # Builds with the ios debug build in mobai.json, the one
+      # MobAI and other Macs build with; without one the steps below build.
+      - name: Build with mobai.json
+        id: mobaijson
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          CMD=$(jq -r '.build.ios.debug.command // empty' mobai.json 2>/dev/null || true)
+          [ -n "$CMD" ] || exit 0
+          bash -ec "$CMD"
+          WANT=$(jq -r '.build.ios.debug.app' mobai.json)
+          APP=$(ls -td $WANT 2>/dev/null | head -1)
+          [ -n "$APP" ] || { echo "::error::The build made no app at $WANT, the path mobai.json names"; exit 1; }
+          case "$APP" in /*) ;; *) APP="$PWD/$APP" ;; esac
+          echo "APP_PATH=$APP" >> "$GITHUB_ENV"
+          echo "built=true" >> "$GITHUB_OUTPUT"
+
+
+      - name: Install JS dependencies
+        if: steps.mobaijson.outputs.built != 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          npm ci
+
+      - name: Generate the iOS project
+        if: steps.mobaijson.outputs.built != 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          [ -d ios ] || npx expo prebuild --platform ios --no-install
+
+      - name: Install pods
+        if: steps.mobaijson.outputs.built != 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          pod install
+
+      # A Release build carries its JavaScript, so it runs without a dev
+      # server. Set SCHEME to build another scheme than the one found here.
+      - name: Build for the simulator
+        if: steps.mobaijson.outputs.built != 'true'
+        env:
+          SCHEME: ""
+        run: |
+          set -e
+          cd "$GITHUB_WORKSPACE/."
+          WORKSPACE=$(find . -maxdepth 1 -name '*.xcworkspace' | head -1)
+          if [ -n "$WORKSPACE" ]; then
+            TARGET="-workspace $WORKSPACE"
+            [ -n "$SCHEME" ] || SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          else
+            PROJECT=$(find . -maxdepth 1 -name '*.xcodeproj' | head -1)
+            TARGET="-project $PROJECT"
+            [ -n "$SCHEME" ] || SCHEME=$(xcodebuild -list -json -project "$PROJECT" | jq -r '.project.schemes[0]')
+          fi
+          echo "Building $SCHEME"
+          xcodebuild $TARGET -scheme "$SCHEME" -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+          echo "APP_PATH=$PWD/$(find build/Build/Products -maxdepth 2 -name '*.app' -type d | head -1)" >> "$GITHUB_ENV"
+
+
+      # A Debug build loads its JavaScript from Metro, as it does in MobAI;
+      # a Release build carries its own and ignores it.
+      - name: Start Metro
+        env:
+          CI: "1"
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          nohup npx expo start --port 8081 > "$RUNNER_TEMP/metro.log" 2>&1 &
+          for i in $(seq 90); do curl -sf http://localhost:8081/status >/dev/null && exit 0; sleep 2; done
+          echo "::error::Metro did not start"; cat "$RUNNER_TEMP/metro.log"; exit 1
+
+      - name: Run tests
+        env:
+          MOBAI_API_KEY: ${{ secrets.MOBAI_API_KEY }}
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          # Pull requests from forks get no secrets: they run, without a report.
+          REPORT=""
+          [ -z "$MOBAI_API_KEY" ] || REPORT="--report mobai --project 15e04a84-9bd8-41b0-b13c-170c4090b50f"
+          mobai-ci test 'tests' --root . --app "$APP_PATH" --device "$MOBAI_SIM_UDID" \
+            --wait-device 4m --output mobai-ci-out $REPORT
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mobai-tests-ios
+          path: "mobai-ci-out"
+
+  android:
+    needs: tests
+    if: needs.tests.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs mobai-ci and boots an emulator. The first run prepares an
+      # emulator image, which on a small runner can take most of the time
+      # given here; later runs resume it in seconds.
+      - uses: MobAI-App/mobai-ci@v1
+        with:
+          boot-emu: true
+          emu-startup-timeout: 20m
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+
+      # Builds with the android debug build in mobai.json, the one
+      # MobAI and other Macs build with; without one the steps below build.
+      - name: Build with mobai.json
+        id: mobaijson
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          CMD=$(jq -r '.build.android.debug.command // empty' mobai.json 2>/dev/null || true)
+          [ -n "$CMD" ] || exit 0
+          bash -ec "$CMD"
+          WANT=$(jq -r '.build.android.debug.app' mobai.json)
+          APP=$(ls -td $WANT 2>/dev/null | head -1)
+          [ -n "$APP" ] || { echo "::error::The build made no app at $WANT, the path mobai.json names"; exit 1; }
+          case "$APP" in /*) ;; *) APP="$PWD/$APP" ;; esac
+          echo "APP_PATH=$APP" >> "$GITHUB_ENV"
+          echo "built=true" >> "$GITHUB_OUTPUT"
+
+
+      - name: Install JS dependencies
+        if: steps.mobaijson.outputs.built != 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          npm ci
+
+      - name: Generate the Android project
+        if: steps.mobaijson.outputs.built != 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          [ -d android ] || npx expo prebuild --platform android --no-install
+
+      # A release build carries its JavaScript, so it runs without a dev
+      # server; the project signs it with its debug key.
+      - name: Build the app
+        if: steps.mobaijson.outputs.built != 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE/android"
+          chmod +x gradlew
+          ./gradlew assembleRelease
+          echo "APP_PATH=$PWD/app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_ENV"
+
+
+      # A Debug build loads its JavaScript from Metro, as it does in MobAI;
+      # a Release build carries its own and ignores it.
+      - name: Start Metro
+        env:
+          CI: "1"
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          nohup npx expo start --port 8081 > "$RUNNER_TEMP/metro.log" 2>&1 &
+          adb -s "$MOBAI_EMU_SERIAL" reverse tcp:8081 tcp:8081
+          for i in $(seq 90); do curl -sf http://localhost:8081/status >/dev/null && exit 0; sleep 2; done
+          echo "::error::Metro did not start"; cat "$RUNNER_TEMP/metro.log"; exit 1
+
+      - name: Run tests
+        env:
+          MOBAI_API_KEY: ${{ secrets.MOBAI_API_KEY }}
+        run: |
+          cd "$GITHUB_WORKSPACE/."
+          # Pull requests from forks get no secrets: they run, without a report.
+          REPORT=""
+          [ -z "$MOBAI_API_KEY" ] || REPORT="--report mobai --project 15e04a84-9bd8-41b0-b13c-170c4090b50f"
+          mobai-ci test 'tests' --root . --app "$APP_PATH" --device "$MOBAI_EMU_SERIAL" \
+            --wait-device 4m --output mobai-ci-out $REPORT
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mobai-tests-android
+          path: "mobai-ci-out"
