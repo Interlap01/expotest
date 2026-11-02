@@ -30,7 +30,10 @@
     "repo": "expotest"
   },
   "ios": {
-    "bundleId": "run.mobai.expotest"
+    "bundleId": "run.mobai.expotest",
+    "extensions": [
+      "run.mobai.expotest.widget"
+    ]
   },
   "name": "expotest",
   "profiles": {
