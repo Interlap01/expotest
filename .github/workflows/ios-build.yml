@@ -911,20 +911,20 @@ jobs:
           # build takes the files for Debug. Pods restored from the cache after
           # a Release build are Release, so a Debug build linked the Release
           # React, which never connects to Metro: no hot reload, no dev menu.
-          # Before a Debug build, a pod with no record gets its Debug files
-          # from React Native's own script, files a later pod install keeps.
-          # Anything missing (no React Native, no tarball) leaves the pods as
-          # they are.
+          # Before a Debug build, a pod whose record does not say Debug gets
+          # its Debug files from React Native's own script now, files a later
+          # pod install keeps even when it clears the record. Anything
+          # missing (no React Native, no tarball) leaves the pods as they are.
           debug_rn_prebuilts() {
             local pods="$1" rn version pod script tarball
             [ -d "$pods" ] || return 0
             rn=$(cd "$pods/.." && node -p "require('path').dirname(require.resolve('react-native/package.json', {paths: [process.cwd()]}))" 2>/dev/null) || return 0
             version=$(node -p "require(process.argv[1]).version" "$rn/package.json" 2>/dev/null) || return 0
             while IFS=: read -r pod script tarball; do
-              [ -d "$pods/$pod" ] && [ ! -f "$pods/$pod/.last_build_configuration" ] || continue
+              [ -d "$pods/$pod" ] && [ "$(cat "$pods/$pod/.last_build_configuration" 2>/dev/null)" != Debug ] || continue
               [ -f "$rn/$script" ] && [ -f "$pods/$tarball-$(printf '%s' "$version" | tr '[:upper:]' '[:lower:]')-debug.tar.gz" ] || continue
               echo "Putting the Debug build of $pod in place"
-              # A record naming Release makes the script replace the files.
+              # Any record but Debug makes the script replace the files.
               printf Release > "$pods/$pod/.last_build_configuration"
               (cd "$pods" && node "$rn/$script" -c Debug -r "$version" -p "$pods") || echo "::warning::Could not put the Debug build of $pod in place; the app may link its Release build."
             done <<'PODS'
