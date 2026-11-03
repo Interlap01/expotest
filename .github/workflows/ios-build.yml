@@ -913,11 +913,29 @@ jobs:
           # React, which never connects to Metro: no hot reload, no dev menu.
           # Before a Debug build, a pod whose record does not say Debug gets
           # its Debug files from React Native's own script now, files a later
-          # pod install keeps even when it clears the record. Anything
-          # missing (no React Native, no tarball) leaves the pods as they are.
+          # pod install keeps even when it clears the record. Expo's
+          # precompiled modules switch the same way, and their record can say
+          # debug over Release files (Expo's pod install writes debug into a
+          # missing one), which put Release Expo modules beside the Debug
+          # React and crashed the app at launch; so each gets its Debug files
+          # from Expo's own script before every Debug build (a few MB).
+          # Anything missing (no React Native, no tarball) leaves the pods as
+          # they are.
           debug_rn_prebuilts() {
-            local pods="$1" rn version pod script tarball
+            local pods="$1" rn version pod script tarball expo dir product
             [ -d "$pods" ] || return 0
+            expo=$(cd "$pods/.." && node -p "require.resolve('expo-modules-autolinking/scripts/ios/replace-xcframework.js', {paths: [process.cwd()]})" 2>/dev/null) || expo=""
+            if [ -n "$expo" ]; then
+              for tarball in "$pods"/*/artifacts/*-debug.tar.gz; do
+                [ -f "$tarball" ] || continue
+                dir=$(dirname "$(dirname "$tarball")")
+                product=$(basename "$tarball" -debug.tar.gz)
+                echo "Putting the Debug build of $product in place"
+                # Any record but debug makes the script replace the files.
+                printf release > "$dir/artifacts/.last_build_configuration"
+                node "$expo" -c debug -m "$product" -x "$dir" || echo "::warning::Could not put the Debug build of $product in place; the app may link its Release build."
+              done
+            fi
             rn=$(cd "$pods/.." && node -p "require('path').dirname(require.resolve('react-native/package.json', {paths: [process.cwd()]}))" 2>/dev/null) || return 0
             version=$(node -p "require(process.argv[1]).version" "$rn/package.json" 2>/dev/null) || return 0
             while IFS=: read -r pod script tarball; do
