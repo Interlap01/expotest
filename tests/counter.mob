@@ -1,0 +1,17 @@
+# Tags: smoke
+# Timeout: 120000
+# Simple smoke test: app launches and the counter increments
+
+app "run.mobai.expotest" fresh
+wait_for "Tap me" timeout:90000
+assert_exists "ExpoTest"
+assert_exists "0"
+assert_exists "Tap me"
+
+tap "Tap me"
+assert_exists "1" timeout:3000
+
+tap "Tap me"
+tap "Tap me"
+assert_exists "3" timeout:3000
+assert_not_exists "0"
