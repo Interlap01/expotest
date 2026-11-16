@@ -142,7 +142,7 @@ jobs:
           boot-sim: true # UDID lands in $MOBAI_SIM_UDID
 
       - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: latest-stable
 
@@ -271,7 +271,7 @@ jobs:
 
       - name: Setup Flutter
         if: steps.detect.outputs.type == 'flutter'
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ steps.params.outputs.flutter_version || '' }}
           channel: stable
@@ -712,13 +712,18 @@ jobs:
               DEST_VALUE=iphonesimulator
             fi
 
+            # Signed to run locally (ad hoc: no Apple account, whatever the
+            # project sets), as MobAI's CI tests workflow builds: entitlements
+            # reach the app only through signing, and mobai-ci share slims
+            # the simulator from them.
             xcodebuild "$TARGET_FLAG" "$TARGET_PATH" \
               -scheme "$SCHEME" \
               -configuration "$CONFIGURATION" \
               "$DEST_FLAG" "$DEST_VALUE" \
               -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
               COMPILER_INDEX_STORE_ENABLE=NO \
-              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+              CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
               build
 
             # Ask the project which bundle this scheme produces: the first .app
@@ -819,6 +824,21 @@ jobs:
           path: ${{ runner.temp }}/mobai-last-build
           key: mobai-sim-app-${{ inputs.configuration == 'release' && 'release-' || '' }}${{ steps.params.outputs.ios_path }}-${{ github.run_id }}
 
+      # Opens this runner's tunnel, named after the runner, so the MobAI app
+      # reaches the simulator's screen and the host API on the ports the share
+      # step uses. It runs in the background for the rest of the job; where a
+      # runner keeps one running already, this does nothing. Nothing depends
+      # on it, so it never fails the job.
+      - name: Open the tunnel
+        continue-on-error: true
+        env:
+          MOBAI_API_KEY: ${{ secrets.MOBAI_API_KEY }}
+        run: |
+          # A mobai-ci from before tunnels has no --screen-port either.
+          if mobai-ci share -help 2>&1 | grep -q -- '-screen-port'; then
+            mobai-ci tunnel start
+          fi
+
       # Installs the build on the simulator and publishes it to the MobAI app.
       # The step (and the job) stay running until the simulator is released
       # there or goes unused. The MobAI app may rebuild newer snapshots of the
@@ -833,12 +853,20 @@ jobs:
           if mobai-ci share -help 2>&1 | grep -q -- '-rebuild'; then
             REBUILD=(--dir "$GITHUB_WORKSPACE" --rebuild "bash ${{ steps.build.outputs.build_script }}")
           fi
+          # The ports the MobAI app opens through the tunnel (hostapi.CIHostPort
+          # and CIScreenPort in MobAI): the host API, and the simulator's screen
+          # and touch input.
+          PORTS=()
+          if mobai-ci share -help 2>&1 | grep -q -- '-screen-port'; then
+            PORTS=(--host-port 7101 --screen-port 7102)
+          fi
           mobai-ci share \
             --device "$MOBAI_SIM_UDID" \
             --app "${{ steps.build.outputs.app_path }}" \
             --duration "${{ steps.params.outputs.duration }}" \
             --label "${{ github.repository }} · ${{ steps.params.outputs.build_id }}" \
             "${REBUILD[@]}" \
+            "${PORTS[@]}" \
             --wait-device 4m --startup-timeout 5m
 
       # The tag exists only to start this run, so it leaves with it. Deleting
