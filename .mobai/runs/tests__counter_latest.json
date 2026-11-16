@@ -1,0 +1,116 @@
+{
+  "caseId": "tests/counter.mob",
+  "caseName": "counter",
+  "deviceId": "ci-a1abfce5ef6915e4af98b9eef0a15203",
+  "deviceName": "Interlap01/expotest · 8a431b2e",
+  "startedAt": "2026-11-05T11:48:05.3492016+01:00",
+  "finishedAt": "2026-11-05T11:48:33.8504877+01:00",
+  "passed": true,
+  "stepResults": [
+    {
+      "index": 0,
+      "lineNumber": 5,
+      "lineText": "app \"run.mobai.expotest\" fresh",
+      "passed": true,
+      "startedAtMs": 1793875685349,
+      "durationMs": 404,
+      "kind": "action"
+    },
+    {
+      "index": 1,
+      "lineNumber": 6,
+      "lineText": "wait_for \"Tap me\" timeout:90000",
+      "passed": true,
+      "startedAtMs": 1793875685753,
+      "durationMs": 23612,
+      "kind": "action"
+    },
+    {
+      "index": 2,
+      "lineNumber": 7,
+      "lineText": "assert_exists \"ExpoTest\"",
+      "passed": true,
+      "startedAtMs": 1793875709366,
+      "durationMs": 155,
+      "kind": "assertion"
+    },
+    {
+      "index": 3,
+      "lineNumber": 8,
+      "lineText": "assert_exists \"0\"",
+      "passed": true,
+      "startedAtMs": 1793875709523,
+      "durationMs": 162,
+      "kind": "assertion"
+    },
+    {
+      "index": 4,
+      "lineNumber": 9,
+      "lineText": "assert_exists \"Tap me\"",
+      "passed": true,
+      "startedAtMs": 1793875709685,
+      "durationMs": 161,
+      "kind": "assertion"
+    },
+    {
+      "index": 5,
+      "lineNumber": 11,
+      "lineText": "tap \"Tap me\"",
+      "passed": true,
+      "startedAtMs": 1793875709847,
+      "durationMs": 1060,
+      "kind": "action"
+    },
+    {
+      "index": 6,
+      "lineNumber": 12,
+      "lineText": "assert_exists \"1\" timeout:3000",
+      "passed": true,
+      "startedAtMs": 1793875711161,
+      "durationMs": 176,
+      "kind": "assertion"
+    },
+    {
+      "index": 7,
+      "lineNumber": 14,
+      "lineText": "tap \"Tap me\"",
+      "passed": true,
+      "startedAtMs": 1793875711338,
+      "durationMs": 902,
+      "kind": "action"
+    },
+    {
+      "index": 8,
+      "lineNumber": 15,
+      "lineText": "tap \"Tap me\"",
+      "passed": true,
+      "startedAtMs": 1793875712461,
+      "durationMs": 816,
+      "kind": "action"
+    },
+    {
+      "index": 9,
+      "lineNumber": 16,
+      "lineText": "assert_exists \"3\" timeout:3000",
+      "passed": true,
+      "startedAtMs": 1793875713497,
+      "durationMs": 180,
+      "kind": "assertion"
+    },
+    {
+      "index": 10,
+      "lineNumber": 17,
+      "lineText": "assert_not_exists \"0\"",
+      "passed": true,
+      "startedAtMs": 1793875713678,
+      "durationMs": 172,
+      "kind": "assertion"
+    }
+  ],
+  "sourceFiles": [
+    "D:\\Projects\\expotest\\tests\\counter.mob"
+  ],
+  "tags": [
+    "smoke"
+  ]
+}
