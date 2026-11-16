@@ -26,11 +26,14 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "run.mobai.expotest"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["./plugins/with-ui-scene"]
+    "plugins": [
+      "./plugins/with-ui-scene"
+    ]
   }
 }
