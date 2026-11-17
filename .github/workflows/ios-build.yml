@@ -1507,4 +1507,3 @@ jobs:
       - name: Delete trigger tag
         if: always() && github.ref_type == 'tag'
         run: git push origin ":refs/tags/$GITHUB_REF_NAME"
-# Changed by hand to check the update form
